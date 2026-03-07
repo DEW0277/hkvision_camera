@@ -293,3 +293,84 @@ export async function getDashboardStats({ days = 7 }: { days?: number }) {
   return result;
 }
 
+export async function getEmployeeStats(employeeId: number, days: number = 30) {
+  const today = new Date();
+  const startDate = new Date();
+  startDate.setDate(today.getDate() - (days - 1));
+  const startStr = startDate.toISOString().slice(0, 10);
+
+  const employee = await Employee.findByPk(employeeId);
+  if (!employee) {
+    throw new Error('Employee not found');
+  }
+
+  const attendance = await Attendance.findAll({
+    where: {
+      employeeId,
+      date: {
+        [Op.gte]: startStr,
+      },
+    },
+    order: [['date', 'ASC']],
+  });
+
+  const excuses = await Excuse.findAll({
+    where: {
+      employeeId,
+      date: {
+        [Op.gte]: startStr,
+      },
+    },
+  });
+
+  const attendanceByDate = new Map();
+  attendance.forEach((rec: any) => attendanceByDate.set(rec.date, rec));
+
+  const excusesByDate = new Map();
+  excuses.forEach((exc: any) => {
+    const list = excusesByDate.get(exc.date) || [];
+    list.push(exc);
+    excusesByDate.set(exc.date, list);
+  });
+
+  const result = [];
+
+  for (
+    let d = new Date(startDate);
+    d <= today;
+    d.setDate(d.getDate() + 1)
+  ) {
+    const dateStr = d.toISOString().slice(0, 10);
+    const att = attendanceByDate.get(dateStr);
+    const dailyExcuses = excusesByDate.get(dateStr) || [];
+
+    let status = 'ABSENT';
+
+    const hasSick = dailyExcuses.some((e: any) => e.type === 'sick');
+    const hasDayOff = dailyExcuses.some((e: any) => e.type === 'dayoff');
+    const hasLateExcuse = dailyExcuses.some((e: any) => e.type === 'late');
+
+    if (hasSick) status = 'SICK';
+    else if (hasDayOff) status = 'DAYOFF';
+    else if (!att || !att.wasPresent) status = 'ABSENT';
+    else if (att.isLate && hasLateExcuse) status = 'WARNED';
+    else if (att.isLate) status = 'LATE';
+    else status = 'ON_TIME';
+
+    result.push({
+      date: dateStr,
+      checkIn: formatTime(att?.checkIn || null),
+      checkOut: formatTime(att?.checkOut || null),
+      status,
+    });
+  }
+
+  return {
+    employee: {
+      id: employee.id,
+      fullName: employee.fullName,
+    },
+    stats: result,
+  };
+}
+
