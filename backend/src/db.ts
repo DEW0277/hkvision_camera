@@ -1,8 +1,8 @@
 import { Sequelize } from 'sequelize';
 
-const DB_NAME = process.env.DB_NAME || 'hr_monitor';
-const DB_USER = process.env.DB_USER || 'user';
-const DB_PASSWORD = process.env.DB_PASSWORD || 'password';
+const DB_NAME = process.env.DB_NAME || 'psqldb';
+const DB_USER = process.env.DB_USER || 'admin';
+const DB_PASSWORD = process.env.DB_PASSWORD || '1234';
 const DB_HOST = process.env.DB_HOST || 'localhost';
 const DB_PORT = Number(process.env.DB_PORT) || 5432;
 
