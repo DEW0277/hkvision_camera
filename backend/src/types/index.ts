@@ -14,6 +14,7 @@ export interface IEmployee {
   phone?: string | null;
   branchId: number | null;
   isActive: boolean;
+  language?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }

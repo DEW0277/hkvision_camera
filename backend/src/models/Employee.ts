@@ -39,6 +39,10 @@ const Employee = sequelize.define<EmployeeInstance>(
       type: DataTypes.BOOLEAN,
       defaultValue: true,
     },
+    language: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   },
   {
     tableName: 'employees',

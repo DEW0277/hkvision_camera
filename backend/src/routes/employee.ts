@@ -1,4 +1,5 @@
 import express from 'express';
+import { Op } from 'sequelize';
 import { Branch, Employee, Excuse } from '../models';
 
 // eslint-disable-next-line no-console
@@ -39,15 +40,16 @@ router.get('/me', async (req: express.Request, res: express.Response) => {
     }
     const employee = await Employee.findOne({
       where: { telegramUserId: String(telegramUserId) },
-      attributes: ['id', 'fullName', 'phone', 'telegramUserId'],
+      attributes: ['id', 'fullName', 'phone', 'telegramUserId', 'language'],
     });
     if (!employee) {
-      return res.json({ hasContact: false });
+      return res.json({ hasContact: false, language: null });
     }
     return res.json({
       hasContact: Boolean(employee.phone),
       fullName: employee.fullName,
       phone: employee.phone,
+      language: employee.language,
     });
   } catch (err) {
     // eslint-disable-next-line no-console
@@ -56,30 +58,67 @@ router.get('/me', async (req: express.Request, res: express.Response) => {
   }
 });
 
+// Tilni saqlash
+router.post('/language', async (req: express.Request, res: express.Response) => {
+  try {
+    const { telegramUserId, language } = req.body;
+    if (!telegramUserId || !language) {
+      return res
+        .status(400)
+        .json({ error: 'telegramUserId and language are required' });
+    }
+    let employee = await findOrCreateEmployeeByTelegram({
+      telegramUserId: String(telegramUserId),
+    });
+    if (employee) {
+      await employee.update({ language });
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('Error in /employee/language', err);
+    return res.status(500).json({ error: 'Failed to save language' });
+  }
+});
+
 // Kontakt yuborilganda: telefon va ism-familiyani saqlash
 router.post('/contact', async (req: express.Request, res: express.Response) => {
   try {
     const { telegramUserId, phone_number, first_name, last_name } = req.body;
     if (!telegramUserId || !phone_number) {
-      return res
-        .status(400)
-        .json({ error: 'telegramUserId and phone_number are required' });
+      return res.status(400).json({ error: 'telegramUserId and phone_number are required' });
     }
+
+    const cleanPhone = String(phone_number).replace(/\s/g, '').replace('+', '');
     const fullName = [first_name, last_name].filter(Boolean).join(' ').trim();
-    const employee = await findOrCreateEmployeeByTelegram({
-      telegramUserId: String(telegramUserId),
-      fullName: fullName || undefined,
+
+    // 1. Avval shu telefon raqami bilan xodim bormi qidiramiz
+    let employee = await Employee.findOne({ 
+      where: { 
+        phone: { [Op.like]: `%${cleanPhone.slice(-9)}%` } // Oxirgi 9 ta raqam bo'yicha qidirish (99890... yoki 90...)
+      } 
     });
-    if (!employee) {
-      return res.status(400).json({ error: 'Employee not found/created' });
+
+    if (employee) {
+      // 2. Agar bo'lsa, uning Telegram ID-sini yangilaymiz
+      await employee.update({
+        telegramUserId: String(telegramUserId),
+        ...(fullName && { fullName })
+      });
+    } else {
+      // 3. Agar bo'lmasa, yangi xodim yaratamiz (Holding filialiga)
+      employee = await findOrCreateEmployeeByTelegram({
+        telegramUserId: String(telegramUserId),
+        fullName: fullName || undefined,
+      });
+      await employee.update({
+        phone: cleanPhone,
+        ...(fullName && { fullName }),
+      });
     }
-    await employee.update({
-      phone: String(phone_number).replace(/\s/g, ''),
-      ...(fullName && { fullName }),
-    });
-    return res.json({ ok: true, fullName: employee.fullName });
+
+    return res.json({ ok: true, fullName: employee.fullName, branchId: employee.branchId });
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.error('Error in /employee/contact', err);
     return res.status(500).json({ error: 'Failed to save contact' });
   }
