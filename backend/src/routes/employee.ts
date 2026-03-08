@@ -124,6 +124,30 @@ router.post('/contact', async (req: express.Request, res: express.Response) => {
   }
 });
 
+// Yangi xodim qo'shish (Admin uchun)
+router.post('/add', async (req: express.Request, res: express.Response) => {
+  try {
+    const { personId, fullName, phone, branchId } = req.body;
+    
+    if (!personId || !fullName || !branchId) {
+      return res.status(400).json({ error: 'personId, fullName and branchId are required' });
+    }
+
+    const employee = await Employee.create({
+      personId,
+      fullName,
+      phone: phone ? String(phone).replace(/\+/g, '') : null,
+      branchId: Number(branchId),
+      isActive: true,
+    });
+
+    return res.json({ ok: true, employee });
+  } catch (err: any) {
+    console.error('Error in /employee/add', err);
+    return res.status(500).json({ error: 'Failed to add employee: ' + err.message });
+  }
+});
+
 router.post('/status/late', async (req: express.Request, res: express.Response) => {
   try {
     const { telegramUserId, fullName, minutes, reason, date } = req.body;

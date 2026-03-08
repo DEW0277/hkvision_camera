@@ -63,29 +63,11 @@ const SAMPLE_FIRST_NAMES = [
 
 async function seedEmployees(minEmployees = 50) {
   const count = await Employee.count();
-  if (count >= minEmployees) return;
+  if (count > 0) return; // Agar bazada bitta bo'lsa ham xodim bo'lsa, mock ma'lumot qo'shmaymiz
 
   const branches = await Branch.findAll();
   const employeesToCreate: any[] = [];
-
-  for (let i = 0; i < minEmployees; i += 1) {
-    const branch = branches[i % branches.length];
-    const lastName =
-      SAMPLE_LAST_NAMES[randomInt(0, SAMPLE_LAST_NAMES.length - 1)];
-    const firstName =
-      SAMPLE_FIRST_NAMES[randomInt(0, SAMPLE_FIRST_NAMES.length - 1)];
-    const fullName = `${lastName} ${firstName}`;
-
-    employeesToCreate.push({
-      personId: `P${String(i + 1).padStart(4, '0')}`,
-      fullName,
-      branchId: branch.id,
-      telegramUserId: null,
-    });
-  }
-
-  await Employee.bulkCreate(employeesToCreate);
-}
+  ...
 
 async function seedAttendanceDays(daysBack = 7) {
   const today = new Date();
