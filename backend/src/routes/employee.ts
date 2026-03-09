@@ -111,10 +111,16 @@ router.post('/contact', async (req: express.Request, res: express.Response) => {
         telegramUserId: String(telegramUserId),
         fullName: fullName || undefined,
       });
-      await employee.update({
-        phone: cleanPhone,
-        ...(fullName && { fullName }),
-      });
+      if (employee) {
+        await employee.update({
+          phone: cleanPhone,
+          ...(fullName && { fullName }),
+        });
+      }
+    }
+
+    if (!employee) {
+      return res.status(400).json({ error: 'Employee not found/created' });
     }
 
     return res.json({ ok: true, fullName: employee.fullName, branchId: employee.branchId });

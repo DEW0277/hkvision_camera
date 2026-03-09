@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cameraRouter from './routes/camera'; // Birinchi buni import qilamiz
 import reportsRouter from './routes/reports';
 import dashboardRouter from './routes/dashboard';
 import employeeRouter from './routes/employee';
@@ -12,6 +13,11 @@ app.use(
     origin: process.env.CORS_ORIGIN || '*',
   })
 );
+
+// MUHIM: Kamera routerini express.json() dan oldin qo'yamiz
+// Bu multipart/form-data oqimi (stream) buzilmasligini ta'minlaydi
+app.use('/camera', cameraRouter);
+
 app.use(express.json());
 
 app.get('/health', (req: express.Request, res: express.Response) => {
@@ -24,13 +30,10 @@ app.use('/employee', employeeRouter);
 
 initializeMockData()
   .then(() => {
-    // eslint-disable-next-line no-console
     console.log('Mock data initialized');
   })
-  .catch((err) => {
-    // eslint-disable-next-line no-console
+  .catch((err: any) => {
     console.error('Failed to initialize mock data', err);
   });
 
 export default app;
-

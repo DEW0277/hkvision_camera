@@ -50,6 +50,10 @@ const Attendance = sequelize.define<AttendanceInstance>(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    attendanceStatus: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   },
   {
     tableName: 'attendance',

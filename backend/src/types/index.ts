@@ -30,6 +30,7 @@ export interface IAttendance {
   expectedStartTime: string;
   locationCode: string | null;
   personId: string | null;
+  attendanceStatus?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
