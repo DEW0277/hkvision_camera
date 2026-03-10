@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import cameraRouter from './routes/camera'; // Birinchi buni import qilamiz
+import cameraRouter from './routes/camera';
 import reportsRouter from './routes/reports';
 import dashboardRouter from './routes/dashboard';
 import employeeRouter from './routes/employee';
@@ -14,8 +14,7 @@ app.use(
   })
 );
 
-// MUHIM: Kamera routerini express.json() dan oldin qo'yamiz
-// Bu multipart/form-data oqimi (stream) buzilmasligini ta'minlaydi
+// Kamera routerini express.json dan oldin qoldiramiz (raw body o'qish uchun)
 app.use('/camera', cameraRouter);
 
 app.use(express.json());

@@ -1,98 +1,108 @@
 import express from 'express';
-import multer from 'multer';
-import * as xml2js from 'xml2js';
-import { Employee, Attendance } from '../models';
+import { Op } from 'sequelize';
+import { Employee, Attendance, Branch } from '../models';
 
 const router = express.Router();
-const upload = multer();
-const parser = new xml2js.Parser({ explicitArray: false, mergeAttrs: true });
-
-// Multer middleware-ni alohida o'zgaruvchiga olamiz
-const uploadHandler = upload.any();
 
 router.post('/event', (req, res) => {
-  // 1. Har doim Multer orqali o'tkazamiz
-  uploadHandler(req, res, async (err) => {
-    // Xato bo'lsa ham (Unexpected end of form kabi) baribir ichini tekshirib ko'ramiz
-    if (err) {
-      console.warn('Multer ogohlantirishi:', err.message);
-    }
+  // Kameraga darhol javob qaytaramiz
+  res.status(200).json({ ok: true });
 
-    console.log(`\n--- 🔔 Kiruvchi so'rov: [${new Date().toLocaleTimeString()}] ---`);
-    console.log('Headers:', JSON.stringify(req.headers, null, 2));
-    console.log('Body:', req.body);
+  let rawData = Buffer.alloc(0);
+
+  req.on('data', (chunk) => {
+    rawData = Buffer.concat([rawData, chunk]);
+  });
+
+  req.on('end', async () => {
+    const bodyString = rawData.toString('utf-8');
 
     try {
-      const data = req.body || {};
+      // 1. JSON qismini ajratib olish
+      const jsonMatch = bodyString.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return;
+
+      const data = JSON.parse(jsonMatch[0]);
+
+      // 2. Console-ga chiqarish (Siz so'raganingizdek)
+      console.log('--- 📸 FACE-ID DATA ---');
+      console.log(JSON.stringify(data, null, 2));
+      console.log('-----------------------');
+
+      const ace = data.AccessControllerEvent;
+      if (!ace) return;
+
+      const rawPhone = ace.employeeNoString; 
+      const cleanPhone = String(rawPhone).replace(/\D/g, ''); // Faqat raqamlar
+      const phoneSuffix = cleanPhone.slice(-9); // Oxirgi 9 ta raqam
       
-      // Hikvision odatda ma'lumotni 'AccessControllerEvent' yoki 'event_log' maydonida yuboradi
-      let mainData = data['AccessControllerEvent'] || data['event_log'];
-      let finalResult: any = null;
+      const employeeName = ace.name;
+      const macAddress = data.macAddress; 
+      const deviceName = ace.deviceName || `Branch ${macAddress}`; 
 
-      if (mainData) {
-        // Ma'lumot formatini aniqlash va parse qilish
-        if (typeof mainData === 'string') {
-          if (mainData.includes('<?xml')) {
-            finalResult = await parser.parseStringPromise(mainData);
-          } else if (mainData.trim().startsWith('{')) {
-            finalResult = JSON.parse(mainData);
-          } else {
-            finalResult = mainData;
-          }
-        } else {
-          finalResult = mainData;
-        }
-
-        console.log("👤 FaceID Ma'lumotlari:");
-        console.dir(finalResult, { depth: null, colors: true });
-
-        // Kerakli maydonlarni ajratib olamiz
-        // Eslatma: finalResult ichidagi maydonlar nomini sizning rasmingizga qarab moslaymiz
-        const personId = finalResult.employeeNoString || finalResult.employeeNo;
-        const eventTime = data.dateTime || finalResult.eventTime || new Date();
-        const deviceName = finalResult.deviceName || 'Camera';
-        const status = finalResult.attendanceStatus || 'checkIn';
-
-        if (personId) {
-          const employee = await Employee.findOne({ where: { personId } });
-          if (employee) {
-            const eventDate = new Date(eventTime);
-            const dateStr = eventDate.toISOString().slice(0, 10);
-            
-            let attendance = await Attendance.findOne({ where: { employeeId: employee.id, date: dateStr } });
-            
-            if (!attendance) {
-              await Attendance.create({
-                employeeId: employee.id,
-                date: dateStr,
-                checkIn: eventDate,
-                checkOut: null,
-                isLate: eventDate.getHours() >= 8 && eventDate.getMinutes() > 0,
-                wasPresent: true,
-                expectedStartTime: '08:00',
-                locationCode: deviceName,
-                personId: employee.personId,
-                attendanceStatus: status
-              });
-              console.log(`✅ Bazaga yozildi: ${employee.fullName}`);
-            } else {
-              await attendance.update({ checkOut: eventDate, attendanceStatus: status });
-              console.log(`✅ Yangilandi: ${employee.fullName}`);
-            }
-          } else {
-            console.log(`❓ Xodim topilmadi: ${personId}`);
-          }
-        }
-      } else {
-        console.log("📦 Body bo'sh yoki kutilgan maydon topilmadi.");
+      // 1. Filialni aniqlash...
+      let branch = await Branch.findOne({ where: { code: macAddress } });
+      if (!branch) {
+        branch = await Branch.create({ code: macAddress, name: deviceName });
       }
 
-      // Har doim OK qaytaramiz
-      res.status(200).send('OK');
+      // 2. Xodimni telefon raqamining OXIRGI 9 TA raqami orqali qidirish
+      let employee = await Employee.findOne({ 
+        where: { 
+          phone: { [Op.like]: `%${phoneSuffix}` } 
+        } 
+      });
 
-    } catch (error: any) {
-      console.error("❌ Xatolik:", error.message);
-      res.status(200).send('OK');
+      if (!employee) {
+        console.log(`⚠️ Yangi xodim: ${employeeName} (${cleanPhone})`);
+        employee = await Employee.create({
+          personId: cleanPhone,
+          fullName: employeeName || `User ${cleanPhone}`,
+          phone: cleanPhone,
+          branchId: branch.id,
+          isActive: true
+        });
+      } else {
+        // Xodim topilsa, uning asosiy telefonini ham to'liq formatga yangilab qo'yamiz (ixtiyoriy)
+        if (employee.phone !== cleanPhone) {
+          await employee.update({ phone: cleanPhone });
+        }
+        if (employee.branchId !== branch.id) {
+          await employee.update({ branchId: branch.id });
+        }
+      }
+
+
+      const eventDate = new Date(data.dateTime || new Date());
+      const dateStr = eventDate.toISOString().slice(0, 10);
+
+      // 4. Davomatni yozish
+      let attendance = await Attendance.findOne({ where: { employeeId: employee.id, date: dateStr } });
+
+      if (!attendance) {
+        await Attendance.create({
+          employeeId: employee.id,
+          date: dateStr,
+          checkIn: eventDate,
+          checkOut: null,
+          isLate: eventDate.getHours() >= 8 && eventDate.getMinutes() > 0, // 08:00 dan keyin bo'lsa kechikish
+          wasPresent: true,
+          expectedStartTime: '08:00',
+          locationCode: ace.deviceName || 'Camera',
+          personId: employee.personId,
+          attendanceStatus: ace.attendanceStatus || 'checkIn'
+        });
+        console.log(`✅ ${employee.fullName} Kirdi.`);
+      } else {
+        await attendance.update({
+          checkOut: eventDate,
+          attendanceStatus: ace.attendanceStatus || 'checkOut'
+        });
+        console.log(`✅ ${employee.fullName} Chiqdi / Harakat yangilandi.`);
+      }
+
+    } catch (err: any) {
+      console.error('❌ Error handling camera data:', err.message);
     }
   });
 });

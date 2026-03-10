@@ -95,7 +95,11 @@ async function seedAttendanceDays(daysBack = 7) {
   const employees = await Employee.findAll({ where: { isActive: true } });
   const branches = await Branch.findAll();
 
-  for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 1)) {
+  // Bugungi sanani olmaymiz (faqat kechagacha bo'lgan kunlarni yaratamiz)
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+
+  for (let d = new Date(startDate); d <= yesterday; d.setDate(d.getDate() + 1)) {
     const dateStr = d.toISOString().slice(0, 10);
 
     await Attendance.destroy({ where: { date: dateStr } });
