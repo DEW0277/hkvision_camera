@@ -143,6 +143,20 @@ export default function Home() {
   const [loadingEmployeeStats, setLoadingEmployeeStats] = useState(false);
   const [employeeStatsDays, setEmployeeStatsDays] = useState(30);
   const [activeEmployeeId, setActiveEmployeeId] = useState<number | null>(null);
+  const [healthStatus, setHealthStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchHealth() {
+      try {
+        const res = await fetch(`${BACKEND_URL}/health`);
+        const data = await res.json();
+        setHealthStatus(data.ok ? "OK" : "Error");
+      } catch (e) {
+        setHealthStatus("Error");
+      }
+    }
+    fetchHealth();
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -281,6 +295,11 @@ export default function Home() {
                 {disciplinePercent}%
               </span>
             </div>
+            {healthStatus && (
+              <span className={`text-xs mt-1 font-medium ${healthStatus === 'OK' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                API: {healthStatus}
+              </span>
+            )}
           </div>
         </header>
 

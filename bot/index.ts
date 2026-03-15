@@ -93,11 +93,15 @@ function getLanguageKeyboard() {
     .text("Русский 🇷🇺", "set_lang_ru");
 }
 
-function buildDashboardKeyboard(lang: string) {
+function buildDashboardKeyboard(lang: string, chatId?: string | number) {
   if (!WEBAPP_URL || !WEBAPP_URL.startsWith("https://")) return undefined;
   const t = translations[lang] || translations.ru;
   const kb = new InlineKeyboard();
-  kb.webApp(t.dashboard_btn, WEBAPP_URL);
+  if (chatId && Number(chatId) < 0) {
+    kb.url(t.dashboard_btn, WEBAPP_URL);
+  } else {
+    kb.webApp(t.dashboard_btn, WEBAPP_URL);
+  }
   return kb;
 }
 
@@ -118,7 +122,7 @@ async function sendDailyReportToChat(chatId: string | number, date?: string) {
     const dateStr = date || new Date().toISOString().slice(0, 10);
     const res = await axios.get(`${BACKEND_BASE_URL}/reports/daily-text`, { params: { date: dateStr } });
     const text = res.data;
-    const replyMarkup = buildDashboardKeyboard(lang);
+    const replyMarkup = buildDashboardKeyboard(lang, chatId);
     await bot.api.sendMessage(chatId, text, { ...(replyMarkup && { reply_markup: replyMarkup }) });
   } catch (err: any) {
     console.error("Failed to send daily report", err.message);
@@ -233,7 +237,7 @@ bot.command("today", async (ctx) => { if (ctx.chat) await sendDailyReportToChat(
 bot.command("dashboard", async (ctx) => {
   if (!ctx.from) return;
   const lang = await getLanguageForUser(ctx.from.id);
-  const kb = buildDashboardKeyboard(lang);
+  const kb = buildDashboardKeyboard(lang, ctx.chat?.id);
   await ctx.reply(translations[lang].dashboard_btn + ":", { reply_markup: kb });
 });
 
