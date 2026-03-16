@@ -13,14 +13,25 @@ async function findOrCreateEmployeeByTelegram({ telegramUserId, fullName }: { te
   let employee = await Employee.findOne({ where: { telegramUserId } });
   if (employee) return employee;
 
-  const holdingBranch = (await Branch.findOne({ where: { code: 'Holding' } })) || (await Branch.findOne());
+  let holdingBranch = (await Branch.findOne({ where: { code: 'Holding' } })) || (await Branch.findOne());
+  if (!holdingBranch) {
+    holdingBranch = await Branch.create({ code: 'Holding', name: 'Holding (Auto-generated)' });
+  }
+
   const personId = `TG${telegramUserId}`;
+
+  // Check if personId already exists but lacks telegramUserId
+  const existingByPersonId = await Employee.findOne({ where: { personId } });
+  if (existingByPersonId) {
+    await existingByPersonId.update({ telegramUserId, fullName: fullName || existingByPersonId.fullName });
+    return existingByPersonId;
+  }
 
   employee = await Employee.create({
     personId,
     fullName: fullName || `Telegram User ${telegramUserId}`,
     telegramUserId,
-    branchId: holdingBranch ? holdingBranch.id : null, 
+    branchId: holdingBranch.id, 
     isActive: true,
   });
 
@@ -60,8 +71,9 @@ router.post('/language', async (req: express.Request, res: express.Response) => 
     if (employee) await employee.update({ language });
     
     return res.json({ ok: true });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to save language' });
+  } catch (err: any) {
+    console.error('Language Error:', err);
+    return res.status(500).json({ error: `Failed to save language: ${err.message}` });
   }
 });
 
@@ -115,7 +127,7 @@ router.post('/contact', async (req: express.Request, res: express.Response) => {
 
     return res.json({ ok: true, fullName: employee.fullName, branchId: employee.branchId });
   } catch (err: any) {
-    console.error('Error in /contact:', err.message);
+    console.error('Error in /contact:', err);
     return res.status(500).json({ error: err.message });
   }
 });
