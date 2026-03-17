@@ -241,7 +241,7 @@ bot.command("dashboard", async (ctx) => {
   await ctx.reply(translations[lang].dashboard_btn + ":", { reply_markup: kb });
 });
 
-cron.schedule("* * * * *", async () => { if (MANAGERS_CHAT_ID) await sendDailyReportToChat(MANAGERS_CHAT_ID); }, { timezone: "Asia/Tashkent" });
+cron.schedule("*/5 * * * *", async () => { if (MANAGERS_CHAT_ID) await sendDailyReportToChat(MANAGERS_CHAT_ID); }, { timezone: "Asia/Tashkent" });
 
 bot.catch((err) => console.error("Bot error:", err));
 bot.start();
