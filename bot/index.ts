@@ -182,8 +182,12 @@ bot.on("message:contact", async (ctx) => {
     await ctx.reply(translations[lang].thanks_contact, { reply_markup: { remove_keyboard: true } });
     const isManager = MANAGERS_CHAT_ID && String(ctx.chat?.id) === String(MANAGERS_CHAT_ID);
     await sendMainMenu(ctx, isManager, lang);
-  } catch (e) {
-    await ctx.reply(translations[lang].error);
+  } catch (e: any) {
+    if (e.response && e.response.status === 404) {
+      await ctx.reply(lang === 'uz' ? "Siz xodimlar bazasida topilmadingiz. Iltimos rahbaringizga murojaat qiling." : "Вы не найдены в базе сотрудников. Пожалуйста, обратитесь к руководителю.");
+    } else {
+      await ctx.reply(translations[lang].error);
+    }
   }
 });
 

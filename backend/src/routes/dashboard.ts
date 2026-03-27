@@ -8,7 +8,7 @@ router.get('/attendance', async (req: express.Request, res: express.Response) =>
     const { date, branch, search } = req.query;
     const rows = await getDashboardAttendance({
       date: date as string,
-      branchCode: branch as string,
+      branchName: branch as string,
       search: search as string,
     });
     res.json(rows);
@@ -16,6 +16,19 @@ router.get('/attendance', async (req: express.Request, res: express.Response) =>
     // eslint-disable-next-line no-console
     console.error('Error in /dashboard/attendance', err);
     res.status(500).json({ error: 'Failed to fetch attendance' });
+  }
+});
+
+router.get('/branches', async (req: express.Request, res: express.Response) => {
+  try {
+    const { Branch } = require('../models');
+    const branches = await Branch.findAll({
+      order: [['name', 'ASC']]
+    });
+    res.json(branches);
+  } catch (err: any) {
+    console.error('Error in /dashboard/branches', err);
+    res.status(500).json({ error: 'Failed to fetch branches' });
   }
 });
 

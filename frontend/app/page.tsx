@@ -16,13 +16,7 @@ import {
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
 
-const BRANCH_OPTIONS = [
-  { value: "ALL", label: "Все филиалы" },
-  { value: "Andijon", label: "Андижан" },
-  { value: "Bekobod", label: "Бекабад" },
-  { value: "Chortoq", label: "Чартак" },
-  { value: "Holding", label: "Холдинг" },
-];
+
 
 export interface IAttendanceRow {
   id: number;
@@ -47,6 +41,7 @@ export interface IEmployeeStats {
     checkIn: string | null;
     checkOut: string | null;
     status: string;
+    reason?: string | null;
     shortDate?: string;
     numericStatus?: number; // for graph visualization
   }[];
@@ -136,6 +131,28 @@ export default function Home() {
   const [loadingTable, setLoadingTable] = useState(false);
   const [loadingStats, setLoadingStats] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [branches, setBranches] = useState<{value: string, label: string}[]>([{ value: "ALL", label: "Все филиалы" }]);
+
+  useEffect(() => {
+    async function fetchBranches() {
+      try {
+        const res = await fetch(`${BACKEND_URL}/dashboard/branches`);
+        if (res.ok) {
+          const data = await res.json();
+          const uniqueNames = Array.from(new Set(data.map((b: any) => b.name)));
+          const options = uniqueNames.map((name: any) => ({
+            value: name,
+            label: name
+          }));
+          setBranches([{ value: "ALL", label: "Все филиалы" }, ...options]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch branches", err);
+      }
+    }
+    fetchBranches();
+  }, []);
 
   // Employee modal state
   const [selectedEmployee, setSelectedEmployee] =
@@ -331,7 +348,7 @@ export default function Home() {
                   onChange={(e) => setBranch(e.target.value)}
                   className="w-full rounded-xl border border-slate-700/50 bg-slate-950/50 px-4 py-2.5 text-sm text-slate-200 outline-none transition-all focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                 >
-                  {BRANCH_OPTIONS.map((opt) => (
+                  {branches.map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
                     </option>
@@ -697,31 +714,31 @@ export default function Home() {
                           }}
                         />
                         <Tooltip
-                          contentStyle={{
-                            backgroundColor: "#020617",
-                            borderColor: "#1e293b",
-                            borderRadius: "12px",
-                            boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5)",
-                          }}
-                          itemStyle={{ color: "#e2e8f0" }}
-                          labelStyle={{ color: "#94a3b8", marginBottom: "4px" }}
-                          formatter={(value, name, props) => {
-                            // Convert numeric back to readable
-                            const st = props.payload.status;
-                            return [
-                              st === "ON_TIME"
-                                ? "Вовремя (100%)"
-                                : st === "WARNED"
-                                  ? "Опоздал(предупр) (75%)"
-                                  : st === "LATE"
-                                    ? "Опоздал (50%)"
-                                    : st === "SICK"
-                                      ? "Болел"
-                                      : st === "DAYOFF"
-                                        ? "Отгул"
-                                        : "Отсутствует (0%)",
-                              "Результат",
-                            ];
+                          content={({ active, payload, label }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload;
+                              const st = data.status;
+                              let statusText = "Отсутствует (0%)";
+                              if (st === "ON_TIME") statusText = "Вовремя (100%)";
+                              else if (st === "WARNED") statusText = "Опоздал(предупр) (75%)";
+                              else if (st === "LATE") statusText = "Опоздал (50%)";
+                              else if (st === "SICK") statusText = "Болел";
+                              else if (st === "DAYOFF") statusText = "Отгул";
+
+                              return (
+                                <div className="bg-[#020617] border border-slate-700 rounded-xl p-3 shadow-xl max-w-[200px]">
+                                  <p className="text-slate-400 text-xs mb-1">{data.date}</p>
+                                  <p className="text-white text-sm font-medium">Статус: <span className="text-sky-400">{statusText}</span></p>
+                                  {data.reason && (
+                                    <div className="mt-2 pt-2 border-t border-slate-800 break-words whitespace-pre-wrap">
+                                      <p className="text-rose-300 text-xs font-semibold mb-1">Сабаб (Причина):</p>
+                                      <p className="text-slate-300 text-xs leading-relaxed">{data.reason}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            }
+                            return null;
                           }}
                         />
                         <Area

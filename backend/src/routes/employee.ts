@@ -7,16 +7,11 @@ console.log('employee routes loaded');
 
 const router = express.Router();
 
-async function findOrCreateEmployeeByTelegram({ telegramUserId, fullName }: { telegramUserId: string; fullName?: string }) {
+async function findEmployeeByTelegram({ telegramUserId, fullName }: { telegramUserId: string; fullName?: string }) {
   if (!telegramUserId) return null;
 
   let employee = await Employee.findOne({ where: { telegramUserId } });
   if (employee) return employee;
-
-  let holdingBranch = (await Branch.findOne({ where: { code: 'Holding' } })) || (await Branch.findOne());
-  if (!holdingBranch) {
-    holdingBranch = await Branch.create({ code: 'Holding', name: 'Holding (Auto-generated)' });
-  }
 
   const personId = `TG${telegramUserId}`;
 
@@ -27,15 +22,7 @@ async function findOrCreateEmployeeByTelegram({ telegramUserId, fullName }: { te
     return existingByPersonId;
   }
 
-  employee = await Employee.create({
-    personId,
-    fullName: fullName || `Telegram User ${telegramUserId}`,
-    telegramUserId,
-    branchId: holdingBranch.id, 
-    isActive: true,
-  });
-
-  return employee;
+  return null;
 }
 
 // Xodim kontaktini tekshirish
@@ -67,7 +54,7 @@ router.post('/language', async (req: express.Request, res: express.Response) => 
     const { telegramUserId, language } = req.body;
     if (!telegramUserId || !language) return res.status(400).json({ error: 'telegramUserId and language are required' });
     
-    let employee = await findOrCreateEmployeeByTelegram({ telegramUserId: String(telegramUserId) });
+    let employee = await findEmployeeByTelegram({ telegramUserId: String(telegramUserId) });
     if (employee) await employee.update({ language });
     
     return res.json({ ok: true });
@@ -113,17 +100,11 @@ router.post('/contact', async (req: express.Request, res: express.Response) => {
         ...(fullName && { fullName })
       });
     } else {
-      // Yangi yaratish
-      employee = await findOrCreateEmployeeByTelegram({
-        telegramUserId: String(telegramUserId),
-        fullName: fullName || undefined,
-      });
-      if (employee) {
-        await employee.update({ phone: cleanPhone });
-      }
+      // Xodim bazada yo'q bo'lsa, uni yaratmaymiz!
+      return res.status(404).json({ error: 'Siz bazada yo\'qsiz. Iltimos admin bilan bog\'laning.' });
     }
 
-    if (!employee) return res.status(400).json({ error: 'Employee not found' });
+    if (!employee) return res.status(404).json({ error: 'Employee not found' });
 
     return res.json({ ok: true, fullName: employee.fullName, branchId: employee.branchId });
   } catch (err: any) {
@@ -153,7 +134,7 @@ router.post('/add', async (req: express.Request, res: express.Response) => {
 router.post('/status/late', async (req: express.Request, res: express.Response) => {
   try {
     const { telegramUserId, fullName, minutes, reason, date } = req.body;
-    const employee = await findOrCreateEmployeeByTelegram({ telegramUserId: String(telegramUserId), fullName });
+    const employee = await findEmployeeByTelegram({ telegramUserId: String(telegramUserId), fullName });
     if (!employee) return res.status(400).json({ error: 'Employee not found' });
 
     await Excuse.create({
@@ -171,7 +152,7 @@ router.post('/status/late', async (req: express.Request, res: express.Response) 
 router.post('/status/sick', async (req: express.Request, res: express.Response) => {
   try {
     const { telegramUserId, fullName, reason, date } = req.body;
-    const employee = await findOrCreateEmployeeByTelegram({ telegramUserId: String(telegramUserId), fullName });
+    const employee = await findEmployeeByTelegram({ telegramUserId: String(telegramUserId), fullName });
     if (!employee) return res.status(400).json({ error: 'Employee not found' });
 
     await Excuse.create({
@@ -189,7 +170,7 @@ router.post('/status/sick', async (req: express.Request, res: express.Response) 
 router.post('/status/dayoff', async (req: express.Request, res: express.Response) => {
   try {
     const { telegramUserId, fullName, reason, date } = req.body;
-    const employee = await findOrCreateEmployeeByTelegram({ telegramUserId: String(telegramUserId), fullName });
+    const employee = await findEmployeeByTelegram({ telegramUserId: String(telegramUserId), fullName });
     if (!employee) return res.status(400).json({ error: 'Employee not found' });
 
     await Excuse.create({

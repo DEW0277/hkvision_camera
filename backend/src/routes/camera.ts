@@ -40,10 +40,10 @@ router.post('/event', (req, res) => {
       const macAddress = data.macAddress; 
       const deviceName = ace.deviceName || `Branch ${macAddress}`; 
 
-      // 1. Filialni aniqlash...
-      let branch = await Branch.findOne({ where: { code: macAddress } });
+      // 1. Filialni aniqlash by deviceName
+      let branch = await Branch.findOne({ where: { name: deviceName } });
       if (!branch) {
-        branch = await Branch.create({ code: macAddress, name: deviceName });
+        branch = await Branch.create({ code: deviceName, name: deviceName });
       }
 
       // 2. Xodimni telefon raqamining OXIRGI 9 TA raqami orqali qidirish

@@ -31,17 +31,17 @@ export async function getDailyReport(dateStr?: string) {
   employees.forEach((emp: any) => {
     const branchInfo = branchMap.get(emp.branchId);
     if (!branchInfo) return;
-    if (!perBranch[branchInfo.code]) {
-      perBranch[branchInfo.code] = {
-        code: branchInfo.code,
-        name: branchInfo.name,
+    const branchName = branchInfo.name;
+    if (!perBranch[branchName]) {
+      perBranch[branchName] = {
+        name: branchName,
         totalEmployees: 0,
         presentEmployees: 0,
         lateEmployees: [],
         absentEmployees: [],
       };
     }
-    perBranch[branchInfo.code].totalEmployees += 1;
+    perBranch[branchName].totalEmployees += 1;
   });
 
   const attendanceByEmployee = new Map();
@@ -61,7 +61,7 @@ export async function getDailyReport(dateStr?: string) {
     const empExcuses = excusesByEmployee.get(emp.id) || [];
     const branchInfo = branchMap.get(emp.branchId);
     if (!branchInfo) return;
-    const bucket = perBranch[branchInfo.code];
+    const bucket = perBranch[branchInfo.name];
 
     if (!empAttendance || !empAttendance.wasPresent) {
       bucket.absentEmployees.push({
@@ -129,7 +129,7 @@ export async function getDailyReportText(dateStr?: string) {
     if (b.totalEmployees === 0) return;
 
     lines.push('');
-    lines.push(`📍 ${b.code} — дисциплина: ${b.disciplinePercent}%`);
+    lines.push(`📍 ${b.name} — дисциплина: ${b.disciplinePercent}%`);
     lines.push(
       `   👥 Сотрудники: ${b.totalEmployees} | ✅ На месте: ${b.presentEmployees}`
     );
@@ -161,17 +161,17 @@ export async function getDailyReportText(dateStr?: string) {
 }
 
 export async function getDashboardAttendance(
-  { date, branchCode, search }: { date?: string; branchCode?: string; search?: string }
+  { date, branchName, search }: { date?: string; branchName?: string; search?: string }
 ) {
   const dateStr = date || new Date().toISOString().slice(0, 10);
 
   const whereEmployee: any = { isActive: true };
-  if (branchCode && branchCode !== 'ALL') {
-    const branch = await Branch.findOne({ where: { code: branchCode } });
-    if (!branch) {
+  if (branchName && branchName !== 'ALL') {
+    const branches = await Branch.findAll({ where: { name: branchName } });
+    if (!branches || branches.length === 0) {
       return [];
     }
-    whereEmployee.branchId = branch.id;
+    whereEmployee.branchId = { [Op.in]: branches.map((b) => b.id) };
   }
   if (search) {
     whereEmployee.fullName = {
@@ -350,6 +350,11 @@ export async function getEmployeeStats(employeeId: number, days: number = 30) {
     const hasDayOff = dailyExcuses.some((e: any) => e.type === 'dayoff');
     const hasLateExcuse = dailyExcuses.some((e: any) => e.type === 'late');
 
+    let reason: string | null = null;
+    if (dailyExcuses.length > 0) {
+      reason = dailyExcuses[dailyExcuses.length - 1].reason || null;
+    }
+
     if (hasSick) status = 'SICK';
     else if (hasDayOff) status = 'DAYOFF';
     else if (!att || !att.wasPresent) status = 'ABSENT';
@@ -362,6 +367,7 @@ export async function getEmployeeStats(employeeId: number, days: number = 30) {
       checkIn: formatTime(att?.checkIn || null),
       checkOut: formatTime(att?.checkOut || null),
       status,
+      reason,
     });
   }
 
