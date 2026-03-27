@@ -22,8 +22,7 @@ const MAIN_BACKEND_URL =
 // ==========================================
 // 2. FACE ID (4001 PORT - Yangi Tizim)
 // ==========================================
-const FACE_BACKEND_URL =
-  process.env.NEXT_PUBLIC_FACE_BACKEND_URL || "http://localhost:4001";
+const FACE_BACKEND_URL = "/face-api";
 
 export interface IAttendanceRow {
   id: number;
