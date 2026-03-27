@@ -5,7 +5,7 @@ const nextConfig = {
     return [
       {
         source: "/face-api/:path*",
-        destination: "http://192.168.100.14:4001/:path*",
+        destination: "http://213.230.118.15:4001/:path*",
       },
     ];
   },
