@@ -13,10 +13,16 @@ import {
   Area,
 } from "recharts";
 
-const BACKEND_URL =
+// ==========================================
+// 1. ASOSIY BACKEND (4000 PORT - Eski Tizim)
+// ==========================================
+const MAIN_BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
 
-
+// ==========================================
+// 2. FACE ID (4001 PORT - Yangi Tizim)
+// ==========================================
+const FACE_BACKEND_URL = "/face-api";
 
 export interface IAttendanceRow {
   id: number;
@@ -110,14 +116,12 @@ function statusBadge(status: string) {
   }
 }
 
-// Map status to a numeric value for graphing. E.g.
-// ON_TIME = 100, WARNED = 75, LATE = 50, DAYOFF/SICK = null, ABSENT = 0
 function getNumericStatus(status: string): number | null {
   if (status === "ON_TIME") return 100;
   if (status === "WARNED") return 75;
   if (status === "LATE") return 50;
   if (status === "ABSENT") return 0;
-  return null; // Don't plot sick/dayoff as 0, maybe ignore
+  return null;
 }
 
 export default function Home() {
@@ -132,49 +136,11 @@ export default function Home() {
   const [loadingStats, setLoadingStats] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [branches, setBranches] = useState<{value: string, label: string}[]>([{ value: "ALL", label: "Все филиалы" }]);
+  const [branches, setBranches] = useState<{ value: string; label: string }[]>([
+    { value: "ALL", label: "Все филиалы" },
+  ]);
 
-  useEffect(() => {
-    async function fetchBranches() {
-      try {
-        const res = await fetch(`${BACKEND_URL}/dashboard/branches`);
-        if (res.ok) {
-          const data = await res.json();
-          const uniqueNames = Array.from(new Set(data.map((b: any) => b.name)));
-          const options = uniqueNames.map((name: any) => ({
-            value: name,
-            label: name
-          }));
-          setBranches([{ value: "ALL", label: "Все филиалы" }, ...options]);
-        }
-      } catch (err) {
-        console.error("Failed to fetch branches", err);
-      }
-    }
-    fetchBranches();
-  }, []);
-
-  // Employee modal state
-  const [selectedEmployee, setSelectedEmployee] =
-    useState<IEmployeeStats | null>(null);
-  const [loadingEmployeeStats, setLoadingEmployeeStats] = useState(false);
-  const [employeeStatsDays, setEmployeeStatsDays] = useState(30);
-  const [activeEmployeeId, setActiveEmployeeId] = useState<number | null>(null);
-  const [healthStatus, setHealthStatus] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function fetchHealth() {
-      try {
-        const res = await fetch(`${BACKEND_URL}/health`);
-        const data = await res.json();
-        setHealthStatus(data.ok ? "OK" : "Error");
-      } catch (e) {
-        setHealthStatus("Error");
-      }
-    }
-    fetchHealth();
-  }, []);
-
+  // Telegram sozlamalari
   useEffect(() => {
     if (typeof window === "undefined") return;
     const tg = window.Telegram && window.Telegram.WebApp;
@@ -189,6 +155,43 @@ export default function Home() {
     }
   }, []);
 
+  // 1️⃣ SERVER HOLATINI ESKI MAIN_BACKEND (4000) DAN OVLAMIZ
+  const [healthStatus, setHealthStatus] = useState<string | null>(null);
+  useEffect(() => {
+    async function fetchHealth() {
+      try {
+        const res = await fetch(`${MAIN_BACKEND_URL}/health`);
+        const data = await res.json();
+        setHealthStatus(data.ok ? "OK" : "Error");
+      } catch (e) {
+        setHealthStatus("Error");
+      }
+    }
+    fetchHealth();
+  }, []);
+
+  // 2️⃣ FILIALLARNI FACE_BACKEND (4001) DAN OVLAMIZ
+  useEffect(() => {
+    async function fetchBranches() {
+      try {
+        const res = await fetch(`${FACE_BACKEND_URL}/dashboard/branches`);
+        if (res.ok) {
+          const data = await res.json();
+          const uniqueNames = Array.from(new Set(data.map((b: any) => b.name)));
+          const options = uniqueNames.map((name: any) => ({
+            value: name,
+            label: name,
+          }));
+          setBranches([{ value: "ALL", label: "Все филиалы" }, ...options]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch branches", err);
+      }
+    }
+    fetchBranches();
+  }, []);
+
+  // 3️⃣ JADVAL XODIMLARINI FACE_BACKEND (4001) DAN OVLAMIZ
   useEffect(() => {
     async function fetchAttendance() {
       try {
@@ -198,8 +201,9 @@ export default function Home() {
         if (date) params.set("date", date);
         if (branch) params.set("branch", branch);
         if (search) params.set("search", search);
+
         const res = await fetch(
-          `${BACKEND_URL}/dashboard/attendance?${params.toString()}`,
+          `${FACE_BACKEND_URL}/dashboard/attendance?${params.toString()}`,
         );
         if (!res.ok) {
           throw new Error("Failed to load attendance");
@@ -215,12 +219,13 @@ export default function Home() {
     fetchAttendance();
   }, [date, branch, search]);
 
+  // 4️⃣ GRAFIK STATISTIKASINI FACE_BACKEND (4001) DAN OVLAMIZ
   useEffect(() => {
     async function fetchStats() {
       try {
         setLoadingStats(true);
         const res = await fetch(
-          `${BACKEND_URL}/reports/stats?days=${statsRangeDays}`,
+          `${FACE_BACKEND_URL}/reports/stats?days=${statsRangeDays}`,
         );
         if (!res.ok) {
           throw new Error("Failed to load stats");
@@ -229,7 +234,7 @@ export default function Home() {
         setStats(
           data.map((d) => ({
             ...d,
-            shortDate: d.date.slice(5), // MM-DD
+            shortDate: d.date.slice(5),
           })),
         );
       } catch (e) {
@@ -241,19 +246,25 @@ export default function Home() {
     fetchStats();
   }, [statsRangeDays]);
 
-  // Fetch individual employee stats when an employee is selected
+  // Employee modal state
+  const [selectedEmployee, setSelectedEmployee] =
+    useState<IEmployeeStats | null>(null);
+  const [loadingEmployeeStats, setLoadingEmployeeStats] = useState(false);
+  const [employeeStatsDays, setEmployeeStatsDays] = useState(30);
+  const [activeEmployeeId, setActiveEmployeeId] = useState<number | null>(null);
+
+  // 5️⃣ YAKKA XODIM TAXLILINI FACE_BACKEND (4001) DAN OVLAMIZ
   useEffect(() => {
     if (activeEmployeeId === null) return;
     async function fetchEmployeeStats() {
       try {
         setLoadingEmployeeStats(true);
         const res = await fetch(
-          `${BACKEND_URL}/dashboard/employee-stats/${activeEmployeeId}?days=${employeeStatsDays}`,
+          `${FACE_BACKEND_URL}/dashboard/employee-stats/${activeEmployeeId}?days=${employeeStatsDays}`,
         );
         if (!res.ok) throw new Error("Failed");
         const data: IEmployeeStats = await res.json();
 
-        // Enhance stats with numeric values and short dates for graph
         data.stats = data.stats.map((s) => ({
           ...s,
           shortDate: s.date.slice(5).replace("-", "/"),
@@ -282,7 +293,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-50 font-sans selection:bg-sky-500/30">
-      {/* Dynamic background gradients */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-40">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-sky-900/30 blur-[120px]" />
         <div className="absolute top-[20%] right-[-10%] w-[30%] h-[50%] rounded-full bg-indigo-900/20 blur-[100px]" />
@@ -290,7 +300,6 @@ export default function Home() {
       </div>
 
       <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
-        {/* Header */}
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="group">
             <h1 className="text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
@@ -313,16 +322,16 @@ export default function Home() {
               </span>
             </div>
             {healthStatus && (
-              <span className={`text-xs mt-1 font-medium ${healthStatus === 'OK' ? 'text-emerald-500' : 'text-rose-500'}`}>
+              <span
+                className={`text-xs mt-1 font-medium ${healthStatus === "OK" ? "text-emerald-500" : "text-rose-500"}`}
+              >
                 API: {healthStatus}
               </span>
             )}
           </div>
         </header>
 
-        {/* Top Controls & Network Stats */}
         <section className="grid gap-6 lg:grid-cols-[1fr,350px]">
-          {/* Controls */}
           <div className="flex flex-col gap-5 rounded-3xl border border-white/10 bg-slate-900/40 p-6 shadow-2xl backdrop-blur-xl transition-all hover:bg-slate-900/50">
             <h2 className="text-lg font-bold text-white mb-2">Фильтры</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -370,7 +379,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Network Stats Summary */}
           <div className="flex flex-col justify-between rounded-3xl border border-white/10 bg-slate-900/40 p-6 shadow-2xl backdrop-blur-xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-white">Общая сводка</h2>
@@ -425,7 +433,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Network mini-chart */}
             <div className="flex-1 min-h-[100px] relative">
               {loadingStats ? (
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -504,7 +511,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Employee Table */}
         <section className="rounded-3xl border border-white/10 bg-slate-900/40 shadow-2xl backdrop-blur-xl overflow-hidden flex flex-col">
           <div className="p-6 border-b border-white/5 flex items-center justify-between">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -580,7 +586,6 @@ export default function Home() {
         </section>
       </div>
 
-      {/* Employee Details Modal */}
       {activeEmployeeId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
@@ -590,9 +595,7 @@ export default function Home() {
               setSelectedEmployee(null);
             }}
           ></div>
-
           <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl border border-slate-700 bg-slate-900 p-8 shadow-2xl flex flex-col gap-6 animate-in fade-in zoom-in-95 duration-200">
-            {/* Modal Header */}
             <div className="flex justify-between items-start">
               <div>
                 <h3 className="text-2xl font-bold text-white mb-1">
@@ -626,7 +629,6 @@ export default function Home() {
               </button>
             </div>
 
-            {/* Modal Controls */}
             <div className="flex flex-wrap gap-4 items-center justify-between p-4 rounded-xl- bg-slate-950/50 rounded-2xl border border-white/5">
               <div className="flex items-center gap-3">
                 <span className="text-sm font-semibold uppercase tracking-wider text-slate-500">
@@ -646,7 +648,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Modal Content */}
             <div className="flex-1 bg-slate-950/30 rounded-2xl border border-slate-800 p-6 min-h-[350px] relative">
               {loadingEmployeeStats ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
@@ -719,20 +720,34 @@ export default function Home() {
                               const data = payload[0].payload;
                               const st = data.status;
                               let statusText = "Отсутствует (0%)";
-                              if (st === "ON_TIME") statusText = "Вовремя (100%)";
-                              else if (st === "WARNED") statusText = "Опоздал(предупр) (75%)";
-                              else if (st === "LATE") statusText = "Опоздал (50%)";
+                              if (st === "ON_TIME")
+                                statusText = "Вовремя (100%)";
+                              else if (st === "WARNED")
+                                statusText = "Опоздал(предупр) (75%)";
+                              else if (st === "LATE")
+                                statusText = "Опоздал (50%)";
                               else if (st === "SICK") statusText = "Болел";
                               else if (st === "DAYOFF") statusText = "Отгул";
 
                               return (
                                 <div className="bg-[#020617] border border-slate-700 rounded-xl p-3 shadow-xl max-w-[200px]">
-                                  <p className="text-slate-400 text-xs mb-1">{data.date}</p>
-                                  <p className="text-white text-sm font-medium">Статус: <span className="text-sky-400">{statusText}</span></p>
+                                  <p className="text-slate-400 text-xs mb-1">
+                                    {data.date}
+                                  </p>
+                                  <p className="text-white text-sm font-medium">
+                                    Статус:{" "}
+                                    <span className="text-sky-400">
+                                      {statusText}
+                                    </span>
+                                  </p>
                                   {data.reason && (
                                     <div className="mt-2 pt-2 border-t border-slate-800 break-words whitespace-pre-wrap">
-                                      <p className="text-rose-300 text-xs font-semibold mb-1">Сабаб (Причина):</p>
-                                      <p className="text-slate-300 text-xs leading-relaxed">{data.reason}</p>
+                                      <p className="text-rose-300 text-xs font-semibold mb-1">
+                                        Сабаб (Причина):
+                                      </p>
+                                      <p className="text-slate-300 text-xs leading-relaxed">
+                                        {data.reason}
+                                      </p>
                                     </div>
                                   )}
                                 </div>
