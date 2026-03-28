@@ -4,7 +4,7 @@ import cameraRouter from './routes/camera';
 import reportsRouter from './routes/reports';
 import dashboardRouter from './routes/dashboard';
 import employeeRouter from './routes/employee';
-import { initializeMockData } from './mock/generator';
+// Mock data olib tashlandi
 
 const app = express();
 
@@ -26,13 +26,5 @@ app.get('/health', (req: express.Request, res: express.Response) => {
 app.use('/reports', reportsRouter);
 app.use('/dashboard', dashboardRouter);
 app.use('/employee', employeeRouter);
-
-initializeMockData()
-  .then(() => {
-    console.log('Mock data initialized');
-  })
-  .catch((err: any) => {
-    console.error('Failed to initialize mock data', err);
-  });
 
 export default app;
