@@ -13,16 +13,8 @@ import {
   Area,
 } from "recharts";
 
-// ==========================================
-// 1. ASOSIY BACKEND (4000 PORT - Eski Tizim)
-// ==========================================
-const MAIN_BACKEND_URL =
+const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
-
-// ==========================================
-// 2. FACE ID (4001 PORT - Yangi Tizim)
-// ==========================================
-const FACE_BACKEND_URL = "/face-api";
 
 export interface IAttendanceRow {
   id: number;
@@ -157,10 +149,11 @@ export default function Home() {
 
   // 1️⃣ SERVER HOLATINI ESKI MAIN_BACKEND (4000) DAN OVLAMIZ
   const [healthStatus, setHealthStatus] = useState<string | null>(null);
+
   useEffect(() => {
     async function fetchHealth() {
       try {
-        const res = await fetch(`${MAIN_BACKEND_URL}/health`);
+        const res = await fetch(`${BACKEND_URL}/health`);
         const data = await res.json();
         setHealthStatus(data.ok ? "OK" : "Error");
       } catch (e) {
@@ -170,11 +163,10 @@ export default function Home() {
     fetchHealth();
   }, []);
 
-  // 2️⃣ FILIALLARNI FACE_BACKEND (4001) DAN OVLAMIZ
   useEffect(() => {
     async function fetchBranches() {
       try {
-        const res = await fetch(`${FACE_BACKEND_URL}/dashboard/branches`);
+        const res = await fetch(`${BACKEND_URL}/dashboard/branches`);
         if (res.ok) {
           const data = await res.json();
           const uniqueNames = Array.from(new Set(data.map((b: any) => b.name)));
@@ -191,7 +183,6 @@ export default function Home() {
     fetchBranches();
   }, []);
 
-  // 3️⃣ JADVAL XODIMLARINI FACE_BACKEND (4001) DAN OVLAMIZ
   useEffect(() => {
     async function fetchAttendance() {
       try {
@@ -203,7 +194,7 @@ export default function Home() {
         if (search) params.set("search", search);
 
         const res = await fetch(
-          `${FACE_BACKEND_URL}/dashboard/attendance?${params.toString()}`,
+          `${BACKEND_URL}/dashboard/attendance?${params.toString()}`,
         );
         if (!res.ok) {
           throw new Error("Failed to load attendance");
@@ -219,13 +210,12 @@ export default function Home() {
     fetchAttendance();
   }, [date, branch, search]);
 
-  // 4️⃣ GRAFIK STATISTIKASINI FACE_BACKEND (4001) DAN OVLAMIZ
   useEffect(() => {
     async function fetchStats() {
       try {
         setLoadingStats(true);
         const res = await fetch(
-          `${FACE_BACKEND_URL}/reports/stats?days=${statsRangeDays}`,
+          `${BACKEND_URL}/reports/stats?days=${statsRangeDays}`,
         );
         if (!res.ok) {
           throw new Error("Failed to load stats");
@@ -253,14 +243,13 @@ export default function Home() {
   const [employeeStatsDays, setEmployeeStatsDays] = useState(30);
   const [activeEmployeeId, setActiveEmployeeId] = useState<number | null>(null);
 
-  // 5️⃣ YAKKA XODIM TAXLILINI FACE_BACKEND (4001) DAN OVLAMIZ
   useEffect(() => {
     if (activeEmployeeId === null) return;
     async function fetchEmployeeStats() {
       try {
         setLoadingEmployeeStats(true);
         const res = await fetch(
-          `${FACE_BACKEND_URL}/dashboard/employee-stats/${activeEmployeeId}?days=${employeeStatsDays}`,
+          `${BACKEND_URL}/dashboard/employee-stats/${activeEmployeeId}?days=${employeeStatsDays}`,
         );
         if (!res.ok) throw new Error("Failed");
         const data: IEmployeeStats = await res.json();
