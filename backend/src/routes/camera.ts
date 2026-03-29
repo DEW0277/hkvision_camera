@@ -78,18 +78,14 @@ router.post('/event', (req, res) => {
       // Shuning uchun kamera vaqtini Toshkent (UTC+5) sifatida interpret qilamiz.
       let eventDate: Date;
       if (data.dateTime) {
-        const raw = String(data.dateTime);
-        // Agar timezone belgisi yo'q bo'lsa (+/-HH:MM yoki Z) → UTC+5 qo'shamiz
-        const hasTimezone = /[Z+\-]\d{2}:?\d{2}$/.test(raw) || raw.endsWith('Z');
-        eventDate = hasTimezone ? new Date(raw) : new Date(raw + '+05:00');
+        // Kameradan qanday aniq vaqt kelsa, o'shani o'zini ishlatamiz!
+        eventDate = new Date(String(data.dateTime));
       } else {
         eventDate = new Date(); // Server vaqtini ishlatamiz
       }
 
-      // Toshkent vaqtida sana (YYYY-MM-DD)
-      const tashkentOffset = 5 * 60; // daqiqalarda
-      const localTime = new Date(eventDate.getTime() + tashkentOffset * 60 * 1000);
-      const dateStr = localTime.toISOString().slice(0, 10);
+      // Sana (YYYY-MM-DD) formatini olish
+      const dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tashkent' }).format(eventDate);
 
       // 4. Davomatni yozish
       let attendance = await Attendance.findOne({ where: { employeeId: employee.id, date: dateStr } });
@@ -100,7 +96,7 @@ router.post('/event', (req, res) => {
           date: dateStr,
           checkIn: eventDate,
           checkOut: null,
-          isLate: localTime.getUTCHours() > 8 || (localTime.getUTCHours() === 8 && localTime.getUTCMinutes() > 0), // Toshkent vaqtida 08:00 dan keyin bo'lsa kechikish
+          isLate: parseInt(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit' }).format(eventDate).replace(':', ''), 10) > 800, // 08:00
           wasPresent: true,
           expectedStartTime: '08:00',
           locationCode: ace.deviceName || 'Camera',

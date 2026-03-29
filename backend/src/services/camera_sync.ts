@@ -202,13 +202,10 @@ export async function syncAttendanceFromCamera() {
             if (!employee) continue;
 
             if (!evt.time) continue;
-            const rawTime = String(evt.time);
-            const hasTimezone = /[Z+\-]\d{2}:?\d{2}$/.test(rawTime) || rawTime.endsWith('Z');
-            const eventDate = hasTimezone ? new Date(rawTime) : new Date(rawTime + '+05:00');
+            // Kameradan qanday aniq vaqt kelsa, o'shani o'zlashtiramiz
+            const eventDate = new Date(String(evt.time));
 
-            const tashkentOffset = 5 * 60;
-            const localTime = new Date(eventDate.getTime() + tashkentOffset * 60 * 1000);
-            const dateStr = localTime.toISOString().slice(0, 10);
+            const dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tashkent' }).format(eventDate);
 
             let attendance = await Attendance.findOne({ where: { employeeId: employee.id, date: dateStr } });
 
@@ -218,7 +215,7 @@ export async function syncAttendanceFromCamera() {
                     date: dateStr,
                     checkIn: eventDate,
                     checkOut: null,
-                    isLate: localTime.getUTCHours() > 8 || (localTime.getUTCHours() === 8 && localTime.getUTCMinutes() > 0), // 08:00
+                    isLate: parseInt(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit' }).format(eventDate).replace(':', ''), 10) > 800,
                     wasPresent: true,
                     expectedStartTime: '08:00',
                     locationCode: defaultBranch?.name || 'Camera',
@@ -235,8 +232,8 @@ export async function syncAttendanceFromCamera() {
                     if (!attendance.checkOut) updatePayload.checkOut = attendance.checkIn;
                     updatePayload.checkIn = eventDate;
                     
-                    const earlyLocalTime = new Date(eventDate.getTime() + tashkentOffset * 60 * 1000);
-                    updatePayload.isLate = earlyLocalTime.getUTCHours() > 8 || (earlyLocalTime.getUTCHours() === 8 && earlyLocalTime.getUTCMinutes() > 0);
+                    const timeInt = parseInt(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit' }).format(eventDate).replace(':', ''), 10);
+                    updatePayload.isLate = timeInt > 800;
                 } else if (eventDate.getTime() > currentCheckIn.getTime()) {
                     if (!attendance.checkOut || eventDate.getTime() > new Date(attendance.checkOut as any).getTime()) {
                         updatePayload.checkOut = eventDate;
