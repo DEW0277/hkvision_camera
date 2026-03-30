@@ -1,10 +1,10 @@
 import express from 'express';
 import cors from 'cors';
 import cameraRouter from './routes/camera';
+import camerasRouter from './routes/cameras';
 import reportsRouter from './routes/reports';
 import dashboardRouter from './routes/dashboard';
 import employeeRouter from './routes/employee';
-// Mock data olib tashlandi
 
 const app = express();
 
@@ -26,5 +26,6 @@ app.get('/health', (req: express.Request, res: express.Response) => {
 app.use('/reports', reportsRouter);
 app.use('/dashboard', dashboardRouter);
 app.use('/employee', employeeRouter);
+app.use('/cameras', camerasRouter);
 
 export default app;
