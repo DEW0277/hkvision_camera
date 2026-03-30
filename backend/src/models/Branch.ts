@@ -21,6 +21,16 @@ const Branch = sequelize.define<BranchInstance>(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    workStart: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: '08:00',
+    },
+    workEnd: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: '18:00',
+    },
   },
   {
     tableName: 'branches',

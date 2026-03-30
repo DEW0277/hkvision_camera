@@ -16,6 +16,8 @@ import {
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
 
+import { translations, Language } from "./translations";
+
 export interface IAttendanceRow {
   id: number;
   fullName: string;
@@ -53,7 +55,8 @@ declare global {
   }
 }
 
-function statusBadge(status: string) {
+function statusBadge(status: string, lang: Language) {
+  const t = translations[lang];
   const base =
     "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold tracking-wide border transition-all shadow-sm";
   switch (status) {
@@ -62,7 +65,7 @@ function statusBadge(status: string) {
         <span
           className={`${base} bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-emerald-500/10`}
         >
-          Вовремя
+          {t.status_on_time}
         </span>
       );
     case "LATE":
@@ -70,7 +73,7 @@ function statusBadge(status: string) {
         <span
           className={`${base} bg-amber-500/10 text-amber-400 border-amber-500/20 shadow-amber-500/10`}
         >
-          Опоздал
+          {t.status_late}
         </span>
       );
     case "WARNED":
@@ -78,7 +81,7 @@ function statusBadge(status: string) {
         <span
           className={`${base} bg-sky-500/10 text-sky-400 border-sky-500/20 shadow-sky-500/10`}
         >
-          Опоздал (предупредил)
+          {t.status_warned}
         </span>
       );
     case "SICK":
@@ -86,7 +89,7 @@ function statusBadge(status: string) {
         <span
           className={`${base} bg-blue-500/10 text-blue-400 border-blue-500/20 shadow-blue-500/10`}
         >
-          Болею
+          {t.status_sick}
         </span>
       );
     case "DAYOFF":
@@ -94,7 +97,7 @@ function statusBadge(status: string) {
         <span
           className={`${base} bg-purple-500/10 text-purple-400 border-purple-500/20 shadow-purple-500/10`}
         >
-          Отгул
+          {t.status_dayoff}
         </span>
       );
     default:
@@ -102,7 +105,7 @@ function statusBadge(status: string) {
         <span
           className={`${base} bg-rose-500/10 text-rose-400 border-rose-500/20 shadow-rose-500/10`}
         >
-          Отсутствует
+          {t.status_absent}
         </span>
       );
   }
@@ -117,6 +120,9 @@ function getNumericStatus(status: string): number | null {
 }
 
 export default function Home() {
+  const [lang, setLang] = useState<Language>("ru");
+  const t = translations[lang];
+
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [date, setDate] = useState(todayStr);
   const [branch, setBranch] = useState("ALL");
@@ -129,8 +135,15 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   const [branches, setBranches] = useState<{ value: string; label: string }[]>([
-    { value: "ALL", label: "Все филиалы" },
+    { value: "ALL", label: t.all_branches },
   ]);
+
+  // Update branch label when lang changes
+  useEffect(() => {
+    setBranches((prev) =>
+      prev.map((b) => (b.value === "ALL" ? { ...b, label: t.all_branches } : b))
+    );
+  }, [lang, t.all_branches]);
 
   // Telegram sozlamalari
   useEffect(() => {
@@ -174,14 +187,14 @@ export default function Home() {
             value: name,
             label: name,
           }));
-          setBranches([{ value: "ALL", label: "Все филиалы" }, ...options]);
+          setBranches([{ value: "ALL", label: t.all_branches }, ...options]);
         }
       } catch (err) {
         console.error("Failed to fetch branches", err);
       }
     }
     fetchBranches();
-  }, []);
+  }, [lang, t.all_branches]);
 
   useEffect(() => {
     async function fetchAttendance() {
@@ -202,13 +215,13 @@ export default function Home() {
         const data: IAttendanceRow[] = await res.json();
         setAttendance(data);
       } catch (e: any) {
-        setError(e.message || "Ошибка загрузки данных");
+        setError(e.message || t.no_data);
       } finally {
         setLoadingTable(false);
       }
     }
     fetchAttendance();
-  }, [date, branch, search]);
+  }, [date, branch, search, t.no_data]);
 
   useEffect(() => {
     async function fetchStats() {
@@ -293,40 +306,58 @@ export default function Home() {
           <div className="group">
             <h1 className="text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
               <span className="bg-gradient-to-r from-sky-400 to-indigo-500 bg-clip-text text-transparent">
-                HR
+                {t.header_title_prefix}
               </span>
-              Monitor Dashboard
+              {t.header_title_suffix}
             </h1>
             <p className="mt-2 text-sm text-slate-400 group-hover:text-slate-300 transition-colors">
-              Продвинутая аналитика дисциплины и присутствия персонала.
+              {t.header_subtitle}
             </p>
           </div>
-          <div className="flex flex-col items-start gap-1 p-4 rounded-2xl bg-slate-900/50 border border-white/5 shadow-2xl backdrop-blur-md sm:items-end">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Сегодняшняя дисциплина
-            </span>
-            <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-black bg-gradient-to-br from-emerald-300 to-emerald-600 bg-clip-text text-transparent">
-                {disciplinePercent}%
-              </span>
-            </div>
-            {healthStatus && (
-              <span
-                className={`text-xs mt-1 font-medium ${healthStatus === "OK" ? "text-emerald-500" : "text-rose-500"}`}
+          
+          <div className="flex items-center gap-4">
+            <div className="flex bg-slate-900/80 rounded-xl p-1 border border-white/5 backdrop-blur-md">
+              <button 
+                onClick={() => setLang('uz')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${lang === 'uz' ? 'bg-sky-500 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}
               >
-                API: {healthStatus}
+                UZ
+              </button>
+              <button 
+                onClick={() => setLang('ru')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${lang === 'ru' ? 'bg-sky-500 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                RU
+              </button>
+            </div>
+
+            <div className="flex flex-col items-start gap-1 p-4 rounded-2xl bg-slate-900/50 border border-white/5 shadow-2xl backdrop-blur-md sm:items-end">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                {t.today_discipline}
               </span>
-            )}
+              <div className="flex items-baseline gap-1">
+                <span className="text-4xl font-black bg-gradient-to-br from-emerald-300 to-emerald-600 bg-clip-text text-transparent">
+                  {disciplinePercent}%
+                </span>
+              </div>
+              {healthStatus && (
+                <span
+                  className={`text-xs mt-1 font-medium ${healthStatus === "OK" ? "text-emerald-500" : "text-rose-500"}`}
+                >
+                  {t.api_status}: {healthStatus}
+                </span>
+              )}
+            </div>
           </div>
         </header>
 
         <section className="grid gap-6 lg:grid-cols-[1fr,350px]">
           <div className="flex flex-col gap-5 rounded-3xl border border-white/10 bg-slate-900/40 p-6 shadow-2xl backdrop-blur-xl transition-all hover:bg-slate-900/50">
-            <h2 className="text-lg font-bold text-white mb-2">Фильтры</h2>
+            <h2 className="text-lg font-bold text-white mb-2">{t.filters_title}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Дата выбора
+                  {t.label_date}
                 </label>
                 <div className="relative">
                   <input
@@ -339,7 +370,7 @@ export default function Home() {
               </div>
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Филиал
+                  {t.label_branch}
                 </label>
                 <select
                   value={branch}
@@ -355,13 +386,13 @@ export default function Home() {
               </div>
               <div className="flex flex-col gap-2 sm:col-span-2 lg:col-span-1">
                 <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Поиск сотрудника
+                  {t.label_search}
                 </label>
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Введите имя..."
+                  placeholder={t.placeholder_search}
                   className="w-full rounded-xl border border-slate-700/50 bg-slate-950/50 px-4 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 outline-none transition-all focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
                 />
               </div>
@@ -370,7 +401,7 @@ export default function Home() {
 
           <div className="flex flex-col justify-between rounded-3xl border border-white/10 bg-slate-900/40 p-6 shadow-2xl backdrop-blur-xl">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-white">Общая сводка</h2>
+              <h2 className="text-lg font-bold text-white">{t.summary_title}</h2>
               <div className="inline-flex gap-1 rounded-lg border border-slate-800 bg-slate-950/60 p-1">
                 <button
                   onClick={() => setStatsRangeDays(7)}
@@ -380,7 +411,7 @@ export default function Home() {
                       : "text-slate-400 hover:text-slate-200"
                   }`}
                 >
-                  7 дн
+                  {t.range_7d}
                 </button>
                 <button
                   onClick={() => setStatsRangeDays(30)}
@@ -390,7 +421,7 @@ export default function Home() {
                       : "text-slate-400 hover:text-slate-200"
                   }`}
                 >
-                  30 дн
+                  {t.range_30d}
                 </button>
               </div>
             </div>
@@ -398,7 +429,7 @@ export default function Home() {
             <div className="space-y-3 mb-6">
               <div className="flex justify-between items-center p-3 rounded-xl bg-slate-950/40 border border-white/5">
                 <span className="text-sm font-medium text-slate-400">
-                  Всего сотрудников
+                  {t.total_employees}
                 </span>
                 <span className="text-lg font-bold text-white">
                   {totalCount}
@@ -406,7 +437,7 @@ export default function Home() {
               </div>
               <div className="flex justify-between items-center p-3 rounded-xl bg-emerald-950/20 border border-emerald-500/10">
                 <span className="text-sm font-medium text-emerald-400/80">
-                  На рабочем месте
+                  {t.present_employees}
                 </span>
                 <span className="text-lg font-bold text-emerald-400">
                   {presentCount}
@@ -414,7 +445,7 @@ export default function Home() {
               </div>
               <div className="flex justify-between items-center p-3 rounded-xl bg-rose-950/20 border border-rose-500/10">
                 <span className="text-sm font-medium text-rose-400/80">
-                  Отсутствуют
+                  {t.absent_employees}
                 </span>
                 <span className="text-lg font-bold text-rose-400">
                   {Math.max(totalCount - presentCount, 0)}
@@ -493,7 +524,7 @@ export default function Home() {
                 </ResponsiveContainer>
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-500">
-                  Нет данных
+                  {t.no_data}
                 </div>
               )}
             </div>
@@ -503,12 +534,12 @@ export default function Home() {
         <section className="rounded-3xl border border-white/10 bg-slate-900/40 shadow-2xl backdrop-blur-xl overflow-hidden flex flex-col">
           <div className="p-6 border-b border-white/5 flex items-center justify-between">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              Детализация по сотрудникам
+              {t.table_title}
             </h2>
             {loadingTable && (
               <div className="flex items-center gap-2 text-sm text-sky-400 font-medium">
                 <div className="w-4 h-4 border-2 border-sky-400 border-t-transparent rounded-full animate-spin"></div>
-                Синхронизация...
+                {t.syncing}
               </div>
             )}
           </div>
@@ -518,13 +549,13 @@ export default function Home() {
               <thead>
                 <tr className="bg-slate-950/60 text-xs uppercase tracking-wider text-slate-400 border-b border-white/5">
                   <th className="px-6 py-4 font-semibold rounded-tl-lg">
-                    Сотрудник
+                    {t.th_employee}
                   </th>
-                  <th className="px-6 py-4 font-semibold">Филиал</th>
-                  <th className="px-6 py-4 font-semibold">Приход</th>
-                  <th className="px-6 py-4 font-semibold">Уход</th>
+                  <th className="px-6 py-4 font-semibold">{t.th_branch}</th>
+                  <th className="px-6 py-4 font-semibold">{t.th_check_in}</th>
+                  <th className="px-6 py-4 font-semibold">{t.th_check_out}</th>
                   <th className="px-6 py-4 font-semibold rounded-tr-lg">
-                    Статус
+                    {t.th_status}
                   </th>
                 </tr>
               </thead>
@@ -535,7 +566,7 @@ export default function Home() {
                       colSpan={5}
                       className="px-6 py-12 text-center text-slate-500"
                     >
-                      Нет данных для отображения.
+                      {t.no_data}
                     </td>
                   </tr>
                 ) : (
@@ -565,7 +596,7 @@ export default function Home() {
                           {row.checkOut || "—"}
                         </span>
                       </td>
-                      <td className="px-6 py-4">{statusBadge(row.status)}</td>
+                      <td className="px-6 py-4">{statusBadge(row.status, lang)}</td>
                     </tr>
                   ))
                 )}
@@ -588,10 +619,10 @@ export default function Home() {
             <div className="flex justify-between items-start">
               <div>
                 <h3 className="text-2xl font-bold text-white mb-1">
-                  {selectedEmployee?.employee.fullName || "Загрузка..."}
+                  {selectedEmployee?.employee.fullName || t.syncing}
                 </h3>
                 <p className="text-sm font-medium text-slate-400">
-                  Персональная статистика посещаемости
+                  {t.modal_subtitle}
                 </p>
               </div>
               <button
@@ -621,7 +652,7 @@ export default function Home() {
             <div className="flex flex-wrap gap-4 items-center justify-between p-4 rounded-xl- bg-slate-950/50 rounded-2xl border border-white/5">
               <div className="flex items-center gap-3">
                 <span className="text-sm font-semibold uppercase tracking-wider text-slate-500">
-                  Период:
+                  {t.modal_period}:
                 </span>
                 <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-800">
                   {[7, 14, 30].map((days) => (
@@ -630,7 +661,7 @@ export default function Home() {
                       onClick={() => setEmployeeStatsDays(days)}
                       className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${employeeStatsDays === days ? "bg-sky-500 text-white shadow-md" : "text-slate-400 hover:text-slate-200"}`}
                     >
-                      {days} дн
+                      {days} {lang === 'ru' ? 'дн' : 'kun'}
                     </button>
                   ))}
                 </div>
@@ -642,13 +673,13 @@ export default function Home() {
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
                   <div className="w-8 h-8 border-4 border-sky-500 border-t-transparent rounded-full animate-spin"></div>
                   <span className="text-sm font-medium text-slate-400">
-                    Собираем данные...
+                    {t.loading_data}
                   </span>
                 </div>
               ) : selectedEmployee?.stats.length ? (
                 <div className="w-full h-full flex flex-col gap-4">
                   <h4 className="text-sm font-semibold uppercase text-slate-500">
-                    График дисциплины
+                    {t.graph_discipline}
                   </h4>
                   <div className="w-full h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
@@ -697,10 +728,10 @@ export default function Home() {
                           ticks={[0, 50, 75, 100]}
                           style={{ fontSize: "12px" }}
                           tickFormatter={(val) => {
-                            if (val === 100) return "Вовремя";
-                            if (val === 75) return "Част.";
-                            if (val === 50) return "Опозд.";
-                            return "Нет/Отсут.";
+                            if (val === 100) return t.y_axis_on_time;
+                            if (val === 75) return t.y_axis_partial;
+                            if (val === 50) return t.y_axis_late;
+                            return t.y_axis_absent;
                           }}
                         />
                         <Tooltip
@@ -724,7 +755,7 @@ export default function Home() {
                                     {data.date}
                                   </p>
                                   <p className="text-white text-sm font-medium">
-                                    Статус:{" "}
+                                    {t.tooltip_status}{" "}
                                     <span className="text-sky-400">
                                       {statusText}
                                     </span>
@@ -732,7 +763,7 @@ export default function Home() {
                                   {data.reason && (
                                     <div className="mt-2 pt-2 border-t border-slate-800 break-words whitespace-pre-wrap">
                                       <p className="text-rose-300 text-xs font-semibold mb-1">
-                                        Сабаб (Причина):
+                                        {t.reason_label}
                                       </p>
                                       <p className="text-slate-300 text-xs leading-relaxed">
                                         {data.reason}
@@ -760,7 +791,7 @@ export default function Home() {
                 </div>
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center text-slate-500 font-medium text-lg">
-                  Нет данных за выбранный период
+                  {t.no_data}
                 </div>
               )}
             </div>

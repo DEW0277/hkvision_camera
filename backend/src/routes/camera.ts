@@ -83,7 +83,9 @@ router.post('/event', (req, res) => {
 
       if (!attendance) {
         // Birinchi marta — CHECK IN
-        const isLate = timeInt > 800;
+        const workStartTimeInt = parseInt((branch.workStart || '08:00').replace(':', ''), 10);
+        const isLate = timeInt > workStartTimeInt;
+
         await Attendance.create({
           employeeId: employee.id,
           date: dateStr,
@@ -91,12 +93,12 @@ router.post('/event', (req, res) => {
           checkOut: null,
           isLate,
           wasPresent: true,
-          expectedStartTime: '08:00',
+          expectedStartTime: branch.workStart || '08:00',
           locationCode: deviceName,
           personId: employee.personId,
           attendanceStatus: ace.attendanceStatus || 'checkIn'
         });
-        console.log(`✅ ${employee.fullName} Kirdi (push).`);
+        console.log(`✅ ${employee.fullName} Kirdi (push, expected: ${branch.workStart || '08:00'}).`);
 
       } else {
         // Qaytadan — CHECK OUT

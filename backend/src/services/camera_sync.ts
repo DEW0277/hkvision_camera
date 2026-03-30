@@ -12,6 +12,8 @@ interface CameraConfig {
   ip: string;
   user: string;
   pass: string;
+  startTime?: string;
+  endTime?: string;
 }
 
 function loadCameras(): CameraConfig[] {
@@ -29,11 +31,24 @@ function loadCameras(): CameraConfig[] {
 }
 
 // ─── DB Helpers ───────────────────────────────────────────────────────────────
-async function getOrCreateBranch(name: string) {
+async function getOrCreateBranch(name: string, startTime?: string, endTime?: string) {
   let branch = await Branch.findOne({ where: { name } });
   if (!branch) {
-    branch = await Branch.create({ code: name, name });
+    branch = await Branch.create({ 
+      code: name, 
+      name,
+      workStart: startTime || '08:00',
+      workEnd: endTime || '18:00'
+    });
     console.log(`🏢 [BRANCH] Yangi filial yaratildi: ${name}`);
+  } else {
+    // Agar vaqtlar o'zgargan bo'lsa, bazani yangilaymiz
+    if (startTime && branch.workStart !== startTime) {
+      await branch.update({ workStart: startTime });
+    }
+    if (endTime && branch.workEnd !== endTime) {
+      await branch.update({ workEnd: endTime });
+    }
   }
   return branch;
 }
@@ -133,7 +148,7 @@ export async function syncCameraUsersWithDB() {
   // Barcha kameralardan parallel ravishda xodim ma'lumotlarini olamiz
   const results = await Promise.allSettled(
     cameras.map(async (cam) => {
-      const branch = await getOrCreateBranch(cam.name);
+      const branch = await getOrCreateBranch(cam.name, cam.startTime, cam.endTime);
       const users = await fetchUsersFromCamera(cam);
       console.log(`📷 [${cam.name}] ${users.length} ta xodim topildi.`);
       for (const u of users) {
@@ -199,7 +214,7 @@ export async function syncAttendanceFromCamera() {
     const events = result.value;
     if (events.length === 0) continue;
 
-    const branch = await getOrCreateBranch(cam.name);
+    const branch = await getOrCreateBranch(cam.name, cam.startTime, cam.endTime);
 
     for (const evt of events) {
       const rawPhone = evt.employeeNoString;
@@ -221,14 +236,16 @@ export async function syncAttendanceFromCamera() {
           new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit' })
             .format(eventDate).replace(':', ''), 10
         );
+        const workStartTimeInt = parseInt((branch.workStart || '08:00').replace(':', ''), 10);
+        
         await Attendance.create({
           employeeId: employee.id,
           date: dateStr,
           checkIn: eventDate,
           checkOut: null,
-          isLate: timeInt > 800,
+          isLate: timeInt > workStartTimeInt,
           wasPresent: true,
-          expectedStartTime: '08:00',
+          expectedStartTime: branch.workStart || '08:00',
           locationCode: branch.name,
           personId: employee.personId,
           attendanceStatus: evt.attendanceStatus || 'checkIn',
@@ -245,7 +262,8 @@ export async function syncAttendanceFromCamera() {
             new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit' })
               .format(eventDate).replace(':', ''), 10
           );
-          updatePayload.isLate = timeInt > 800;
+          const workStartTimeInt = parseInt((branch.workStart || '08:00').replace(':', ''), 10);
+          updatePayload.isLate = timeInt > workStartTimeInt;
         } else if (eventDate.getTime() > currentCheckIn.getTime()) {
           const currentCheckOut = attendance.checkOut ? new Date(attendance.checkOut as any).getTime() : 0;
           if (!attendance.checkOut || eventDate.getTime() > currentCheckOut) {

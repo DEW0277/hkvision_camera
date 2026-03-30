@@ -2,6 +2,8 @@ export interface IBranch {
   id?: number;
   code: string;
   name: string;
+  workStart?: string; // e.g. "09:00"
+  workEnd?: string;   // e.g. "18:00"
   createdAt?: Date;
   updatedAt?: Date;
 }
