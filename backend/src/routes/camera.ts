@@ -101,12 +101,35 @@ router.post('/event', (req, res) => {
         console.log(`✅ ${employee.fullName} Kirdi (push, expected: ${branch.workStart || '08:00'}).`);
 
       } else {
-        // Qaytadan — CHECK OUT
-        await attendance.update({
-          checkOut: eventDate,
-          attendanceStatus: ace.attendanceStatus || 'checkOut'
-        });
-        console.log(`🚪 ${employee.fullName} Chiqdi (push).`);
+        // Mavjud rekordni yangilash logicasi (Polling bilan bir xil)
+        const currentCheckIn = new Date(attendance.checkIn as any);
+        const updatePayload: any = {};
+
+        // 1. Agar yangi event mavjud checkIn'dan oldinroq bo'lsa -> checkIn'ni yangilaymiz
+        if (eventDate.getTime() < currentCheckIn.getTime()) {
+          // Eskisini checkOut'ga suramiz (agar bo'sh bo'lsa)
+          if (!attendance.checkOut) updatePayload.checkOut = attendance.checkIn;
+          
+          updatePayload.checkIn = eventDate;
+          const workStartTimeInt = parseInt((branch.workStart || '08:00').replace(':', ''), 10);
+          updatePayload.isLate = timeInt > workStartTimeInt;
+          console.log(`🔄 ${employee.fullName} Kelish vaqti yangilandi (oldinroq vaqt topildi).`);
+        } 
+        // 2. Agar yangi event checkIn'dan keyin bo'lsa -> checkOut'ni yangilaymiz
+        else if (eventDate.getTime() > currentCheckIn.getTime()) {
+          const currentCheckOut = attendance.checkOut ? new Date(attendance.checkOut as any).getTime() : 0;
+          if (!attendance.checkOut || eventDate.getTime() > currentCheckOut) {
+            updatePayload.checkOut = eventDate;
+            console.log(`🚪 ${employee.fullName} Chiqish/Harakat vaqti yangilandi.`);
+          }
+        }
+
+        if (Object.keys(updatePayload).length > 0) {
+          await attendance.update({
+            ...updatePayload,
+            attendanceStatus: ace.attendanceStatus || 'push'
+          });
+        }
       }
 
     } catch (err: any) {

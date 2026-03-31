@@ -63,7 +63,9 @@ Yangi filial yoki kamera qo'shish uchun faqat `backend/cameras.json` fayliga quy
     "name": "",
     "ip": "",
     "user": "",
-    "pass": ""
+    "pass": "",
+    "startTime": "08:30",
+    "endTime": "17:30"
   }
 ]
 ```
