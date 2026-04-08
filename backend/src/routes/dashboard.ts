@@ -21,10 +21,25 @@ router.get('/attendance', async (req: express.Request, res: express.Response) =>
 
 router.get('/branches', async (req: express.Request, res: express.Response) => {
   try {
-    const { Branch } = require('../models');
+    const { Branch, Employee } = require('../models');
+    const { Op } = require('sequelize');
+
+    // Faqat aktiv xodimlari bor filiallarni topish
+    const activeEmployees = await Employee.findAll({
+      where: { isActive: true },
+      attributes: ['branchId'],
+      group: ['branchId']
+    });
+
+    const activeBranchIds = activeEmployees.map((e: any) => e.branchId).filter(Boolean);
+
     const branches = await Branch.findAll({
+      where: {
+        id: { [Op.in]: activeBranchIds }
+      },
       order: [['name', 'ASC']]
     });
+
     res.json(branches);
   } catch (err: any) {
     console.error('Error in /dashboard/branches', err);

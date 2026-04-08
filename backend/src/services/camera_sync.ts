@@ -230,6 +230,10 @@ export async function syncAttendanceFromCamera() {
       const dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tashkent' }).format(eventDate);
 
       let attendance = await Attendance.findOne({ where: { employeeId: employee.id, date: dateStr } });
+      const label = (evt.label || '').toLowerCase();
+      const status = (evt.attendanceStatus || '').toLowerCase();
+      const isExplicitCheckOut = label === 'ketdim' || status === 'checkout';
+      const isExplicitCheckIn = label === 'keldim' || status === 'checkin';
 
       if (!attendance) {
         const timeInt = parseInt(
@@ -238,36 +242,64 @@ export async function syncAttendanceFromCamera() {
         );
         const workStartTimeInt = parseInt((branch.workStart || '08:00').replace(':', ''), 10);
         
-        await Attendance.create({
+        const createPayload: any = {
           employeeId: employee.id,
           date: dateStr,
-          checkIn: eventDate,
-          checkOut: null,
-          isLate: timeInt > workStartTimeInt,
           wasPresent: true,
           expectedStartTime: branch.workStart || '08:00',
           locationCode: branch.name,
           personId: employee.personId,
-          attendanceStatus: evt.attendanceStatus || 'checkIn',
-        });
+          attendanceStatus: label || evt.attendanceStatus || (isExplicitCheckOut ? 'checkOut' : 'checkIn'),
+        };
+
+        if (isExplicitCheckOut) {
+          createPayload.checkIn = null;
+          createPayload.checkOut = eventDate;
+          createPayload.isLate = false;
+        } else {
+          createPayload.checkIn = eventDate;
+          createPayload.checkOut = null;
+          createPayload.isLate = timeInt > workStartTimeInt;
+        }
+
+        await Attendance.create(createPayload);
         newRecords++;
       } else {
-        const currentCheckIn = new Date(attendance.checkIn as any);
+        const currentCheckIn = attendance.checkIn ? new Date(attendance.checkIn as any) : null;
+        const currentCheckOut = attendance.checkOut ? new Date(attendance.checkOut as any).getTime() : 0;
         const updatePayload: any = {};
 
-        if (eventDate.getTime() < currentCheckIn.getTime()) {
-          if (!attendance.checkOut) updatePayload.checkOut = attendance.checkIn;
-          updatePayload.checkIn = eventDate;
-          const timeInt = parseInt(
-            new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit' })
-              .format(eventDate).replace(':', ''), 10
-          );
-          const workStartTimeInt = parseInt((branch.workStart || '08:00').replace(':', ''), 10);
-          updatePayload.isLate = timeInt > workStartTimeInt;
-        } else if (eventDate.getTime() > currentCheckIn.getTime()) {
-          const currentCheckOut = attendance.checkOut ? new Date(attendance.checkOut as any).getTime() : 0;
+        if (isExplicitCheckIn) {
+          if (!currentCheckIn || eventDate.getTime() < currentCheckIn.getTime()) {
+            updatePayload.checkIn = eventDate;
+            const timeInt = parseInt(
+              new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit' })
+                .format(eventDate).replace(':', ''), 10
+            );
+            const workStartTimeInt = parseInt((branch.workStart || '08:00').replace(':', ''), 10);
+            updatePayload.isLate = timeInt > workStartTimeInt;
+          }
+        } else if (isExplicitCheckOut) {
           if (!attendance.checkOut || eventDate.getTime() > currentCheckOut) {
             updatePayload.checkOut = eventDate;
+          }
+        } else {
+          // Auto logic
+          if (currentCheckIn && eventDate.getTime() < currentCheckIn.getTime()) {
+            if (!attendance.checkOut) updatePayload.checkOut = attendance.checkIn;
+            updatePayload.checkIn = eventDate;
+            const timeInt = parseInt(
+              new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tashkent', hour: '2-digit', minute: '2-digit' })
+                .format(eventDate).replace(':', ''), 10
+            );
+            const workStartTimeInt = parseInt((branch.workStart || '08:00').replace(':', ''), 10);
+            updatePayload.isLate = timeInt > workStartTimeInt;
+          } else if (currentCheckIn && eventDate.getTime() > currentCheckIn.getTime()) {
+            if (!attendance.checkOut || eventDate.getTime() > currentCheckOut) {
+              updatePayload.checkOut = eventDate;
+            }
+          } else if (!currentCheckIn) {
+            updatePayload.checkIn = eventDate;
           }
         }
 

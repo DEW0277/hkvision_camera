@@ -50,14 +50,8 @@ router.post('/event', (req, res) => {
       });
 
       if (!employee) {
-        console.log(`⚠️ Yangi xodim push orqali: ${employeeName} (${cleanPhone})`);
-        employee = await Employee.create({
-          personId: cleanPhone,
-          fullName: employeeName || `User ${cleanPhone}`,
-          phone: cleanPhone,
-          branchId: branch.id,
-          isActive: true
-        });
+        console.log(`⚠️ Bazada yo'q xodim (push e'tiborsiz qoldirildi): ${employeeName || 'Unknown'} (${cleanPhone})`);
+        return;
       } else {
         const updates: any = {};
         if (employee.phone !== cleanPhone) updates.phone = cleanPhone;
@@ -79,56 +73,81 @@ router.post('/event', (req, res) => {
           .format(eventDate).replace(':', ''), 10
       );
 
+      const label = (ace.label || '').toLowerCase();
+      console.log(`🏷️  Event Label: ${label || 'none'}`);
+
       let attendance = await Attendance.findOne({ where: { employeeId: employee.id, date: dateStr } });
 
       if (!attendance) {
-        // Birinchi marta — CHECK IN
+        // Yangi rekord yaratish
         const workStartTimeInt = parseInt((branch.workStart || '08:00').replace(':', ''), 10);
         const isLate = timeInt > workStartTimeInt;
 
-        await Attendance.create({
+        const createPayload: any = {
           employeeId: employee.id,
           date: dateStr,
-          checkIn: eventDate,
-          checkOut: null,
-          isLate,
           wasPresent: true,
           expectedStartTime: branch.workStart || '08:00',
           locationCode: deviceName,
           personId: employee.personId,
-          attendanceStatus: ace.attendanceStatus || 'checkIn'
-        });
-        console.log(`✅ ${employee.fullName} Kirdi (push, expected: ${branch.workStart || '08:00'}).`);
+          attendanceStatus: label || ace.attendanceStatus || (label === 'ketdim' ? 'checkOut' : 'checkIn')
+        };
+
+        if (label === 'ketdim') {
+          createPayload.checkIn = null;
+          createPayload.checkOut = eventDate;
+          createPayload.isLate = false; // Ketishda kechikish bo'lmaydi
+        } else {
+          // 'keldim' yoki boshqa holat (default checkIn)
+          createPayload.checkIn = eventDate;
+          createPayload.checkOut = null;
+          createPayload.isLate = isLate;
+        }
+
+        await Attendance.create(createPayload);
+        console.log(`✅ ${employee.fullName} ${label === 'ketdim' ? 'Ketdi' : 'Kirdi'} (push, label: ${label || 'auto'}).`);
 
       } else {
-        // Mavjud rekordni yangilash logicasi (Polling bilan bir xil)
-        const currentCheckIn = new Date(attendance.checkIn as any);
+        // Mavjud rekordni yangilash
         const updatePayload: any = {};
+        const currentCheckIn = attendance.checkIn ? new Date(attendance.checkIn as any) : null;
+        const currentCheckOut = attendance.checkOut ? new Date(attendance.checkOut as any).getTime() : 0;
 
-        // 1. Agar yangi event mavjud checkIn'dan oldinroq bo'lsa -> checkIn'ni yangilaymiz
-        if (eventDate.getTime() < currentCheckIn.getTime()) {
-          // Eskisini checkOut'ga suramiz (agar bo'sh bo'lsa)
-          if (!attendance.checkOut) updatePayload.checkOut = attendance.checkIn;
-          
-          updatePayload.checkIn = eventDate;
-          const workStartTimeInt = parseInt((branch.workStart || '08:00').replace(':', ''), 10);
-          updatePayload.isLate = timeInt > workStartTimeInt;
-          console.log(`🔄 ${employee.fullName} Kelish vaqti yangilandi (oldinroq vaqt topildi).`);
-        } 
-        // 2. Agar yangi event checkIn'dan keyin bo'lsa -> checkOut'ni yangilaymiz
-        else if (eventDate.getTime() > currentCheckIn.getTime()) {
-          const currentCheckOut = attendance.checkOut ? new Date(attendance.checkOut as any).getTime() : 0;
+        if (label === 'keldim') {
+          // Explicit Check-In
+          if (!currentCheckIn || eventDate.getTime() < currentCheckIn.getTime()) {
+            updatePayload.checkIn = eventDate;
+            const workStartTimeInt = parseInt((branch.workStart || '08:00').replace(':', ''), 10);
+            updatePayload.isLate = timeInt > workStartTimeInt;
+          }
+        } else if (label === 'ketdim') {
+          // Explicit Check-Out
           if (!attendance.checkOut || eventDate.getTime() > currentCheckOut) {
             updatePayload.checkOut = eventDate;
-            console.log(`🚪 ${employee.fullName} Chiqish/Harakat vaqti yangilandi.`);
+          }
+        } else {
+          // Label yo'q bo'lsa - avvalgi vaqtga asoslangan mantiq
+          if (currentCheckIn && eventDate.getTime() < currentCheckIn.getTime()) {
+            if (!attendance.checkOut) updatePayload.checkOut = attendance.checkIn;
+            updatePayload.checkIn = eventDate;
+            const workStartTimeInt = parseInt((branch.workStart || '08:00').replace(':', ''), 10);
+            updatePayload.isLate = timeInt > workStartTimeInt;
+          } else if (currentCheckIn && eventDate.getTime() > currentCheckIn.getTime()) {
+            if (!attendance.checkOut || eventDate.getTime() > currentCheckOut) {
+              updatePayload.checkOut = eventDate;
+            }
+          } else if (!currentCheckIn) {
+            // Agar faqat checkOut bo'lsa va yangi event kelsa (checkIn bo'lishi mumkin)
+            updatePayload.checkIn = eventDate;
           }
         }
 
         if (Object.keys(updatePayload).length > 0) {
           await attendance.update({
             ...updatePayload,
-            attendanceStatus: ace.attendanceStatus || 'push'
+            attendanceStatus: label || ace.attendanceStatus || 'push'
           });
+          console.log(`🔄 ${employee.fullName} ma'lumotlari yangilandi (${label || 'auto-update'}).`);
         }
       }
 
