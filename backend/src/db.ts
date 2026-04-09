@@ -10,7 +10,7 @@ const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
   host: DB_HOST,
   port: DB_PORT,
   dialect: 'postgres',
-  logging: console.log, // loglarni ko'rsatadi
+  logging: false, // loglarni o'chirish
 });
 
 export default sequelize;

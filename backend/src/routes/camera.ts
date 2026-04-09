@@ -23,10 +23,6 @@ router.post('/event', (req, res) => {
 
       const data = JSON.parse(jsonMatch[0]);
 
-      console.log('--- 📸 FACE-ID PUSH EVENT ---');
-      console.log(JSON.stringify(data, null, 2));
-      console.log('-----------------------------');
-
       const ace = data.AccessControllerEvent;
       if (!ace) return;
 
@@ -74,7 +70,6 @@ router.post('/event', (req, res) => {
       );
 
       const label = (ace.label || '').toLowerCase();
-      console.log(`🏷️  Event Label: ${label || 'none'}`);
 
       let attendance = await Attendance.findOne({ where: { employeeId: employee.id, date: dateStr } });
 

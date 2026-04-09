@@ -2,9 +2,6 @@ import express from 'express';
 import { Op } from 'sequelize';
 import { Branch, Employee, Excuse } from '../models';
 
-// eslint-disable-next-line no-console
-console.log('employee routes loaded');
-
 const router = express.Router();
 
 async function findEmployeeByTelegram({ telegramUserId, fullName }: { telegramUserId: string; fullName?: string }) {
